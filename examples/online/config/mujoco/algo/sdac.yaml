@@ -9,7 +9,7 @@ algo:
   critic_ensemble_size: 2
   discount: 0.99
   num_samples: 10
-  num_reverse_samples: 500
+  num_reverse_samples: 64
   ema: 0.005
   temp: 0.05
   diffusion:

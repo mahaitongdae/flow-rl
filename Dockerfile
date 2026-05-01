@@ -1,19 +1,18 @@
 # Dockerfile
 
-# Start with a base Python image
-FROM python:3.11-slim
+FROM haitongma1/diffusion-policy-jax:blackwell
 
-# Install git and parallel
-RUN apt-get update && apt-get install -y git parallel
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        git parallel && \
+    rm -rf /var/lib/apt/lists/*
 
-# Set the working directory
 WORKDIR /app
 
-# Will ignore files listed in .dockerignore
-COPY . .
+RUN git clone https://github.com/typoverflow/flow-rl.git
 
-RUN pip install --no-cache-dir -e .
-RUN pip install --ignore-requires-python git+https://github.com/Farama-Foundation/d4rl@master#egg=d4rl
+WORKDIR /app/flow-rl
 
-# Set a default command to run when the container starts
+RUN pip install --no-cache-dir -e ".[online]"
+RUN pip install --no-cache-dir gymnasium_robotics
+
 CMD ["/bin/bash"]
