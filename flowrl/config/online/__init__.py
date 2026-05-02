@@ -34,6 +34,8 @@ _CONFIGS = {
     "td3": TD3Config,
     "td7": TD7Config,
     "dpmd": DPMDConfig,
+    "dpmd_exp": DPMDConfig,
+    "dpmd_linear": DPMDConfig,
     "qsm": QSMConfig,
     "idem": IDEMConfig,
     "ppo": PPOConfig,

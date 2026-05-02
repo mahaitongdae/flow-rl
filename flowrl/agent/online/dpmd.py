@@ -84,7 +84,7 @@ def jit_sample_actions(
         actions = actions.reshape(B, num_samples, -1)[jnp.arange(B), best_idx]
     return rng, actions
 
-@partial(jax.jit, static_argnames=("discount", "target_kl", "num_particles", "ema", "reweight", "additive_noise", "negative_bound"))
+@partial(jax.jit, static_argnames=("discount", "target_kl", "num_particles", "ema", "reweight", "additive_noise", "negative_bound", "weights_offset"))
 def jit_update_dpmd(
     rng: PRNGKey,
     actor: ContinuousDDPM,
@@ -100,6 +100,7 @@ def jit_update_dpmd(
     ema: float,
     additive_noise: float,
     negative_bound: float,
+    weights_offset: float,
 ) -> Tuple[PRNGKey, ContinuousDDPM, Model, Model, jnp.ndarray, jnp.ndarray, Metric]:
 
     # split RNG upfront to remove false sequential dependencies,
@@ -170,7 +171,7 @@ def jit_update_dpmd(
     ent_weights = jnp.maximum(weights, 1e-6)
     ent_weights = ent_weights / ent_weights.sum(axis=-1, keepdims=True)
     entropy = - jnp.sum(ent_weights * jnp.log(ent_weights+1e-6), axis=-1)
-    weights = weights * num_particles
+    weights = weights * num_particles + weights_offset
 
     _, at, t, eps = actor.add_noise(add_noise_rng, action_batch)
 
@@ -339,6 +340,7 @@ class DPMDAgent(BaseAgent):
             ema=self.cfg.ema,
             additive_noise=self.cfg.additive_noise,
             negative_bound=self.cfg.negative_bound,
+            weights_offset=self.cfg.weights_offset,
         )
         if self._n_training_steps % self.cfg.old_policy_update_interval == 0:
             self.actor_target = ema_update(self.actor, self.actor_target, 1.0)
