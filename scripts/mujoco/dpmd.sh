@@ -1,7 +1,8 @@
 # Specify which GPUs to use
-GPUS=(0 1 2 3 4 5 6 7)  # Modify this array to specify which GPUs to use
+GPUS=(0 1 2 3)  # Modify this array to specify which GPUs to use
 SEEDS=(0 1 2 3 4)
-NUM_EACH_GPU=1
+WEIGHTS_OFFSETS=(-0.1 -0.2)
+NUM_EACH_GPU=2
 
 PARALLEL=$((NUM_EACH_GPU * ${#GPUS[@]}))
 
@@ -21,9 +22,9 @@ TASKS=(
 
 SHARED_ARGS=(
     "algo=dpmd_exp"
-    "log.tag=test"
+    "log.tag=weights_offset"
     "log.entity=haitongma-harvard-university"
-    "log.project=simpo-neurips-test"
+    "log.project=simpo-neurips"
 )
 
 
@@ -31,13 +32,14 @@ run_task() {
     task=$1
     seed=$2
     slot=$3
+    weights_offset=$4
     num_gpus=${#GPUS[@]}
     device_idx=$((slot % num_gpus))
     device=${GPUS[$device_idx]}
-    echo "Running $env $seed on GPU $device"
+    echo "Running $task $seed weights_offset=$weights_offset on GPU $device"
     export CUDA_VISIBLE_DEVICES=$device
     export XLA_PYTHON_CLIENT_PREALLOCATE="false"
-    command="python3 examples/online/main_mujoco_offpolicy.py task=$task seed=$seed ${SHARED_ARGS[@]}"
+    command="python3 examples/online/main_mujoco_offpolicy.py task=$task seed=$seed algo.weights_offset=$weights_offset ${SHARED_ARGS[@]}"
     if [ -n "$DRY_RUN" ]; then
         echo $command
     else
@@ -48,7 +50,7 @@ run_task() {
 
 . env_parallel.bash
 if [ -n "$DRY_RUN" ]; then
-    env_parallel -P${PARALLEL} run_task {1} {2} {%} ::: ${TASKS[@]} ::: ${SEEDS[@]}
+    env_parallel -P${PARALLEL} run_task {1} {2} {%} {3} ::: ${TASKS[@]} ::: ${SEEDS[@]} ::: ${WEIGHTS_OFFSETS[@]}
 else
-    env_parallel --bar --results log/parallel/$name -P${PARALLEL} run_task {1} {2} {%} ::: ${TASKS[@]} ::: ${SEEDS[@]}
+    env_parallel --bar --results log/parallel/$name -P${PARALLEL} run_task {1} {2} {%} {3} ::: ${TASKS[@]} ::: ${SEEDS[@]} ::: ${WEIGHTS_OFFSETS[@]}
 fi

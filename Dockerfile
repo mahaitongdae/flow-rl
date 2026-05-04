@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-RUN git clone https://github.com/typoverflow/flow-rl.git
+RUN git clone https://github.com/mahaitongdae/flow-rl.git --branch dev-revision0430
 
 WORKDIR /app/flow-rl
 

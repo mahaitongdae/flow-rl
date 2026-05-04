@@ -162,7 +162,7 @@ def jit_update_dpmd(
         weights = jnp.exp((q_batch - nu) / temp())
     elif reweight == "linear":
         nu = solve_normalizer_linear(q_batch, temp(), negative=negative_bound/num_particles)
-        weights = jnp.maximum((q_batch - nu) / temp(), negative_bound/num_particles)
+        weights = jnp.maximum((q_batch - nu) / temp(), (negative_bound + weights_offset)/num_particles)
     elif reweight == "square":
         nu = solve_normalizer_square(q_batch, temp())
         weights = jnp.maximum((q_batch - nu) / temp(), 0) ** 2
@@ -171,7 +171,7 @@ def jit_update_dpmd(
     ent_weights = jnp.maximum(weights, 1e-6)
     ent_weights = ent_weights / ent_weights.sum(axis=-1, keepdims=True)
     entropy = - jnp.sum(ent_weights * jnp.log(ent_weights+1e-6), axis=-1)
-    weights = weights * num_particles + weights_offset
+    weights = weights * num_particles
 
     _, at, t, eps = actor.add_noise(add_noise_rng, action_batch)
 
