@@ -19,6 +19,7 @@ algo:
   additive_noise_dict:
     Ant-v5: 0.1
   weights_offset: -0.1
+  weights_offset_decay_rate: 0.0
   diffusion:
     backbone_cls: ${algo.backbone_cls}
     activation: mish

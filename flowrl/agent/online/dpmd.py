@@ -84,7 +84,7 @@ def jit_sample_actions(
         actions = actions.reshape(B, num_samples, -1)[jnp.arange(B), best_idx]
     return rng, actions
 
-@partial(jax.jit, static_argnames=("discount", "target_kl", "num_particles", "ema", "reweight", "additive_noise", "negative_bound", "weights_offset"))
+@partial(jax.jit, static_argnames=("discount", "target_kl", "num_particles", "ema", "reweight", "additive_noise", "negative_bound"))
 def jit_update_dpmd(
     rng: PRNGKey,
     actor: ContinuousDDPM,
@@ -325,6 +325,7 @@ class DPMDAgent(BaseAgent):
         self._n_training_steps = 0
 
     def train_step(self, batch: Batch, step: int) -> Metric:
+        weights_offset = self.cfg.weights_offset * jnp.exp(-self.cfg.weights_offset_decay_rate * self._n_training_steps)
         self.rng, self.actor, self.actor_target, self.critic, self.critic_target, self.temp, metrics = jit_update_dpmd(
             self.rng,
             self.actor,
@@ -340,7 +341,7 @@ class DPMDAgent(BaseAgent):
             ema=self.cfg.ema,
             additive_noise=self.cfg.additive_noise,
             negative_bound=self.cfg.negative_bound,
-            weights_offset=self.cfg.weights_offset,
+            weights_offset=weights_offset,
         )
         if self._n_training_steps % self.cfg.old_policy_update_interval == 0:
             self.actor_target = ema_update(self.actor, self.actor_target, 1.0)

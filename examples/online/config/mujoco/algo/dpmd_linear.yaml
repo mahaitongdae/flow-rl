@@ -17,6 +17,7 @@ algo:
   additive_noise: 0.2
   negative_bound: 0.0
   weights_offset: 0.0
+  weights_offset_decay_rate: 0.0
   diffusion:
     backbone_cls: ${algo.backbone_cls}
     activation: mish

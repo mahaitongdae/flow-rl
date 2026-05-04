@@ -31,6 +31,7 @@ SUPPORTED_AGENTS: Dict[str, BaseAgent] = {
     "nclql": NCLQLAgent,
     "dpmd_exp": DPMDAgent,
     "dpmd_linear": DPMDAgent,
+    "dpmd_linear_decay": DPMDAgent,
     "dpmd_square": DPMDAgent,
     "dpmd": DPMDAgent,
 }
