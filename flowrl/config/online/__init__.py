@@ -36,6 +36,8 @@ _CONFIGS = {
     "dpmd": DPMDConfig,
     "dpmd_exp": DPMDConfig,
     "dpmd_linear": DPMDConfig,
+    "dpmd_linear_reg": DPMDConfig,
+    "dpmd_linear_reg_decay": DPMDConfig,
     "qsm": QSMConfig,
     "idem": IDEMConfig,
     "ppo": PPOConfig,

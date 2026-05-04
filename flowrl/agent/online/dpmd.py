@@ -101,6 +101,7 @@ def jit_update_dpmd(
     additive_noise: float,
     negative_bound: float,
     weights_offset: float,
+    neg_weight_reg: float,
 ) -> Tuple[PRNGKey, ContinuousDDPM, Model, Model, jnp.ndarray, jnp.ndarray, Metric]:
 
     # split RNG upfront to remove false sequential dependencies,
@@ -168,6 +169,7 @@ def jit_update_dpmd(
         weights = jnp.maximum((q_batch - nu) / temp(), 0) ** 2
     else:
         raise ValueError(f"Invalid reweighting method: {reweight}")
+    neg_mask = (weights < 0).astype(jnp.float32)
     ent_weights = jnp.maximum(weights, 1e-6)
     ent_weights = ent_weights / ent_weights.sum(axis=-1, keepdims=True)
     entropy = - jnp.sum(ent_weights * jnp.log(ent_weights+1e-6), axis=-1)
@@ -186,12 +188,27 @@ def jit_update_dpmd(
         )
         loss = jnp.clip((eps_pred - eps) ** 2, a_max=3.0)
         loss = (weights[..., jnp.newaxis] * loss).mean()
+        reg = neg_weight_reg * (neg_mask[..., jnp.newaxis] * jnp.abs(weights_offset) * eps_pred ** 2).mean()
+        loss = loss + reg
+        eps_pred_norm = jnp.sqrt((eps_pred ** 2).sum(axis=-1))
+        neg_count = jnp.maximum(neg_mask.sum(axis=-1), 1.0)
+        neg_eps_pred_norm = ((neg_mask * eps_pred_norm).sum(axis=-1) / neg_count)
         return loss, {
             "loss/actor_loss": loss,
+            "loss/neg_weight_reg": reg,
             "misc/weights": weights.mean(),
             "misc/weights_std": weights.std(0).mean(),
             "misc/weights_max": weights.max(0).mean(),
             "misc/weights_min": weights.min(0).mean(),
+            "misc/neg_weight_count": neg_mask.mean(),
+            "misc/neg_eps_pred_norm_mean": neg_eps_pred_norm.mean(),
+            "misc/neg_eps_pred_norm_std": neg_eps_pred_norm.std(0).mean(),
+            "misc/neg_eps_pred_norm_max": neg_eps_pred_norm.max(0).mean(),
+            "misc/neg_eps_pred_norm_min": neg_eps_pred_norm.min(0).mean(),
+            "misc/eps_pred_norm_mean": eps_pred_norm.mean(),
+            "misc/eps_pred_norm_std": eps_pred_norm.std(0).mean(),
+            "misc/eps_pred_norm_max": eps_pred_norm.max(0).mean(),
+            "misc/eps_pred_norm_min": eps_pred_norm.min(0).mean(),
             "misc/entropy": entropy.mean(),
             "misc/batch_action_std": action_batch.std(axis=1).mean(),
         }
@@ -342,6 +359,7 @@ class DPMDAgent(BaseAgent):
             additive_noise=self.cfg.additive_noise,
             negative_bound=self.cfg.negative_bound,
             weights_offset=weights_offset,
+            neg_weight_reg=self.cfg.neg_weight_reg,
         )
         if self._n_training_steps % self.cfg.old_policy_update_interval == 0:
             self.actor_target = ema_update(self.actor, self.actor_target, 1.0)

@@ -41,3 +41,4 @@ class DPMDConfig(BaseAlgoConfig):
     diffusion: DPMDDiffusionConfig
     weights_offset: float
     weights_offset_decay_rate: float
+    neg_weight_reg: float = 0.0

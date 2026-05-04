@@ -32,6 +32,8 @@ SUPPORTED_AGENTS: Dict[str, BaseAgent] = {
     "dpmd_exp": DPMDAgent,
     "dpmd_linear": DPMDAgent,
     "dpmd_linear_decay": DPMDAgent,
+    "dpmd_linear_reg": DPMDAgent,
+    "dpmd_linear_reg_decay": DPMDAgent,
     "dpmd_square": DPMDAgent,
     "dpmd": DPMDAgent,
 }
