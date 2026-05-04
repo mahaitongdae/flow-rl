@@ -18,6 +18,8 @@ from flowrl.module.simba import Simba
 from flowrl.module.time_embedding import LearnableFourierEmbedding
 from flowrl.types import Batch, Metric, Param, PRNGKey
 
+Q_STATS_EMA = 0.99
+
 
 def solve_normalizer_exp(q: jnp.ndarray, temp: float):
     nu = temp * jax.nn.logsumexp(q / temp, axis=-1, keepdims=True)
@@ -84,7 +86,7 @@ def jit_sample_actions(
         actions = actions.reshape(B, num_samples, -1)[jnp.arange(B), best_idx]
     return rng, actions
 
-@partial(jax.jit, static_argnames=("discount", "target_kl", "num_particles", "ema", "reweight", "additive_noise", "negative_bound", "weights_offset"))
+@partial(jax.jit, static_argnames=("discount", "target_kl", "num_particles", "ema", "reweight", "additive_noise", "negative_bound", "weights_offset", "worst_n", "worst_weight"))
 def jit_update_dpmd(
     rng: PRNGKey,
     actor: ContinuousDDPM,
@@ -92,6 +94,8 @@ def jit_update_dpmd(
     critic: Model,
     critic_target: Model,
     temp: Model,
+    running_q_mean: jnp.ndarray,
+    running_q_std: jnp.ndarray,
     batch: Batch,
     discount: float,
     reweight: str,
@@ -101,7 +105,9 @@ def jit_update_dpmd(
     additive_noise: float,
     negative_bound: float,
     weights_offset: float,
-) -> Tuple[PRNGKey, ContinuousDDPM, Model, Model, jnp.ndarray, jnp.ndarray, Metric]:
+    worst_n: int = 4,
+    worst_weight: float = -1.0,
+) -> Tuple[PRNGKey, ContinuousDDPM, ContinuousDDPM, Model, Model, Model, jnp.ndarray, jnp.ndarray, Metric]:
 
     # split RNG upfront to remove false sequential dependencies,
     # allowing XLA to parallelize independent sampling calls
@@ -157,21 +163,37 @@ def jit_update_dpmd(
     )(batch.obs, action_batch)
     q_batch = q_batch.mean(axis=0).squeeze(-1)
 
+    q_mean = q_batch.mean()
+    q_std = q_batch.std()
+    running_q_mean = Q_STATS_EMA * running_q_mean + (1.0 - Q_STATS_EMA) * q_mean
+    running_q_std = Q_STATS_EMA * running_q_std + (1.0 - Q_STATS_EMA) * q_std
+
     if reweight == "exp":
         nu = solve_normalizer_exp(q_batch, temp())
         weights = jnp.exp((q_batch - nu) / temp())
     elif reweight == "linear":
         nu = solve_normalizer_linear(q_batch, temp(), negative=negative_bound/num_particles)
-        weights = jnp.maximum((q_batch - nu) / temp(), negative_bound/num_particles)
+        weights = jnp.maximum((q_batch - nu) / temp(), (negative_bound + weights_offset)/num_particles)
     elif reweight == "square":
         nu = solve_normalizer_square(q_batch, temp())
         weights = jnp.maximum((q_batch - nu) / temp(), 0) ** 2
+    elif reweight == "gr_linear":
+        weights = jnp.maximum((q_batch - running_q_mean) / (running_q_std + 1e-6), negative_bound) * 5.0
+    elif reweight == "won":
+        nu = solve_normalizer_linear(q_batch, temp(), negative=negative_bound/num_particles)
+        weights = jnp.maximum((q_batch - nu) / temp(), negative_bound/num_particles)
+        ranked = jnp.argsort(q_batch, axis=-1)
+        worst_mask = ranked < worst_n
+        weights = jnp.where(worst_mask, worst_weight, weights)
     else:
         raise ValueError(f"Invalid reweighting method: {reweight}")
     ent_weights = jnp.maximum(weights, 1e-6)
     ent_weights = ent_weights / ent_weights.sum(axis=-1, keepdims=True)
     entropy = - jnp.sum(ent_weights * jnp.log(ent_weights+1e-6), axis=-1)
-    weights = weights * num_particles + weights_offset
+    if 'gr' in reweight:
+        pass
+    else:
+        weights = weights * num_particles
 
     _, at, t, eps = actor.add_noise(add_noise_rng, action_batch)
 
@@ -213,10 +235,12 @@ def jit_update_dpmd(
     new_critic_target = ema_update(new_critic, critic_target, ema)
     # new_actor_target = ema_update(new_actor, actor_target, ema)
     new_actor_target = actor_target
-    return rng, new_actor, new_actor_target, new_critic, new_critic_target, new_temp, {
+    return rng, new_actor, new_actor_target, new_critic, new_critic_target, new_temp, running_q_mean, running_q_std, {
         **critic_metrics,
         **actor_metrics,
         **temp_metrics,
+        "misc/running_q_mean": running_q_mean,
+        "misc/running_q_std": running_q_std,
     }
 
 
@@ -323,15 +347,19 @@ class DPMDAgent(BaseAgent):
 
         # define tracking variables
         self._n_training_steps = 0
+        self.running_q_mean = jnp.array(0.0)
+        self.running_q_std = jnp.array(1.0)
 
     def train_step(self, batch: Batch, step: int) -> Metric:
-        self.rng, self.actor, self.actor_target, self.critic, self.critic_target, self.temp, metrics = jit_update_dpmd(
+        self.rng, self.actor, self.actor_target, self.critic, self.critic_target, self.temp, self.running_q_mean, self.running_q_std, metrics = jit_update_dpmd(
             self.rng,
             self.actor,
             self.actor_target,
             self.critic,
             self.critic_target,
             self.temp,
+            self.running_q_mean,
+            self.running_q_std,
             batch,
             discount=self.cfg.discount,
             reweight=self.cfg.reweight,
@@ -341,6 +369,8 @@ class DPMDAgent(BaseAgent):
             additive_noise=self.cfg.additive_noise,
             negative_bound=self.cfg.negative_bound,
             weights_offset=self.cfg.weights_offset,
+            worst_n=self.cfg.worst_n,
+            worst_weight=self.cfg.worst_weight,
         )
         if self._n_training_steps % self.cfg.old_policy_update_interval == 0:
             self.actor_target = ema_update(self.actor, self.actor_target, 1.0)

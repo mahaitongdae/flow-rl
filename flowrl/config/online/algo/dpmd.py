@@ -40,3 +40,5 @@ class DPMDConfig(BaseAlgoConfig):
     negative_bound: float
     diffusion: DPMDDiffusionConfig
     weights_offset: float = -0.1
+    worst_n: int = 4
+    worst_weight: float = -1.0
