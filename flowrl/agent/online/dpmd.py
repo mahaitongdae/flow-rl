@@ -341,8 +341,26 @@ class DPMDAgent(BaseAgent):
         # define tracking variables
         self._n_training_steps = 0
 
+    def _compute_weights_offset(self) -> jnp.ndarray:
+        t = self._n_training_steps
+        schedule = self.cfg.weights_offset_schedule
+        if schedule == "exp_decay":
+            return self.cfg.weights_offset * jnp.exp(-self.cfg.weights_offset_decay_rate * t)
+        elif schedule == "reverse_linear":
+            total_steps = 1_000_000.0
+            progress = jnp.clip(t / total_steps, 0.0, 1.0)
+            return self.cfg.weights_offset * progress
+        elif schedule == "cosine_decay":
+            total_steps = 1_000_000.0
+            num_cycles = 20.0
+            phase = (t / total_steps) * num_cycles * 2.0 * jnp.pi
+            decay = jnp.exp(-self.cfg.weights_offset_decay_rate * t)
+            return self.cfg.weights_offset * decay * 0.5 * (1.0 + jnp.cos(phase))
+        else:
+            raise ValueError(f"Unknown weights_offset_schedule: {schedule}")
+
     def train_step(self, batch: Batch, step: int) -> Metric:
-        weights_offset = self.cfg.weights_offset * jnp.exp(-self.cfg.weights_offset_decay_rate * self._n_training_steps)
+        weights_offset = self._compute_weights_offset()
         self.rng, self.actor, self.actor_target, self.critic, self.critic_target, self.temp, metrics = jit_update_dpmd(
             self.rng,
             self.actor,
