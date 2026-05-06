@@ -352,7 +352,7 @@ class DPMDAgent(BaseAgent):
             return self.cfg.weights_offset * progress
         elif schedule == "cosine_decay":
             total_steps = 1_000_000.0
-            num_cycles = 20.0
+            num_cycles = 5.0
             phase = (t / total_steps) * num_cycles * 2.0 * jnp.pi
             decay = jnp.exp(-self.cfg.weights_offset_decay_rate * t)
             return self.cfg.weights_offset * decay * 0.5 * (1.0 + jnp.cos(phase))

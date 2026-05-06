@@ -1,6 +1,6 @@
 #!/bin/bash
 # Specify which GPUs to use
-GPUS=(0 1 2 3)  # Modify this array to specify which GPUs to use
+GPUS=(4 5 6 7)  # Modify this array to specify which GPUs to use
 SEEDS=(0 1 2 3 4)
 WEIGHTS_OFFSETS=(-0.1 -0.2)
 NUM_EACH_GPU=2
@@ -8,12 +8,12 @@ NUM_EACH_GPU=2
 PARALLEL=$((NUM_EACH_GPU * ${#GPUS[@]}))
 
 TASKS=(
-    "Ant-v5"
-    # "Walker2d-v5"
-    "HalfCheetah-v5"
-    "Swimmer-v5"
-    # "Humanoid-v5"
-    # "Hopper-v5"
+    # "Ant-v5"
+    "Walker2d-v5"
+    # "HalfCheetah-v5"
+    # "Swimmer-v5"
+    "Humanoid-v5"
+    "Hopper-v5"
 )
 
 SHARED_ARGS=(

@@ -19,7 +19,7 @@ algo:
   weights_offset: -0.4
   weights_offset_decay_rate: 2.77e-6
   weights_offset_schedule: cosine_decay
-  neg_weight_reg: 2.0
+  neg_weight_reg: 0.0
   diffusion:
     backbone_cls: ${algo.backbone_cls}
     activation: mish

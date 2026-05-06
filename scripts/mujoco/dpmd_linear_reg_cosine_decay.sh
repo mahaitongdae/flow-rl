@@ -1,6 +1,6 @@
 #!/bin/bash
 # Specify which GPUs to use
-GPUS=(0 1 2 3)  # Modify this array to specify which GPUs to use
+GPUS=(0 1 2 3 7)  # Modify this array to specify which GPUs to use
 SEEDS=(0 1 2 3 4)
 WEIGHTS_OFFSETS=(-0.1 -0.2)
 NUM_EACH_GPU=2
@@ -18,9 +18,7 @@ TASKS=(
 
 SHARED_ARGS=(
     "algo=dpmd_linear_reg_cosine_decay"
-    "algo.neg_weight_reg=0.5"
-    "algo.additive_noise=0.05"
-    "log.tag=weights_offset_v3_cosine_decay"
+    "log.tag=weights_offset_v3_cosine_decay_no_reg"
     "log.entity=haitongma-harvard-university"
     "log.project=simpo-neurips"
 )
