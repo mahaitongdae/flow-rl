@@ -1,26 +1,27 @@
 #!/bin/bash
 # Specify which GPUs to use
-GPUS=(4 5 6 7)  # Modify this array to specify which GPUs to use
-SEEDS=(0 1 2 3 4)
-WEIGHTS_OFFSETS=(-0.1 -0.2)
-NUM_EACH_GPU=2
+GPUS=(0 1 2 3 4 5 6 7)  # Modify this array to specify which GPUs to use
+SEEDS=(0 1 2 3)
+WEIGHTS_OFFSETS=(0.0 -0.1)
+NUM_EACH_GPU=1
 
 PARALLEL=$((NUM_EACH_GPU * ${#GPUS[@]}))
 
 TASKS=(
     # "Ant-v5"
-    "Walker2d-v5"
-    # "HalfCheetah-v5"
+    # "Walker2d-v5"
+    "HalfCheetah-v5"
     # "Swimmer-v5"
-    "Humanoid-v5"
-    "Hopper-v5"
+    # "Humanoid-v5"
+    # "Hopper-v5"
 )
 
 SHARED_ARGS=(
     "algo=dpmd_linear_reg_reverse_linear"
-    "log.tag=weights_offset_v3_reverse_linear"
+    "log.tag=weights_offset_v3_reverse_linear_kl1.5"
     "log.entity=haitongma-harvard-university"
     "log.project=simpo-neurips"
+    "algo.target_kl=1.5"
 )
 
 

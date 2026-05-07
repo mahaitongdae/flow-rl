@@ -43,3 +43,6 @@ class DPMDConfig(BaseAlgoConfig):
     weights_offset_decay_rate: float
     weights_offset_schedule: str = "exp_decay"
     neg_weight_reg: float = 0.0
+    negative_slope: float = 0.01
+    negative_slope_schedule: str = "constant"
+    negative_slope_decay_rate: float = 0.0

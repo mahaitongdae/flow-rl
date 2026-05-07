@@ -100,6 +100,7 @@ def jit_update_dpmd(
     ema: float,
     additive_noise: float,
     negative_bound: float,
+    negative_slope: float,
     weights_offset: float,
     neg_weight_reg: float,
 ) -> Tuple[PRNGKey, ContinuousDDPM, Model, Model, jnp.ndarray, jnp.ndarray, Metric]:
@@ -167,6 +168,9 @@ def jit_update_dpmd(
     elif reweight == "square":
         nu = solve_normalizer_square(q_batch, temp())
         weights = jnp.maximum((q_batch - nu) / temp(), 0) ** 2
+    elif reweight == "leakyrelu":
+        nu = solve_normalizer_linear(q_batch, temp(), negative=negative_bound/num_particles)
+        weights = jax.nn.leaky_relu((q_batch - nu) / temp(), negative_slope=negative_slope)
     else:
         raise ValueError(f"Invalid reweighting method: {reweight}")
     neg_mask = (weights < 0).astype(jnp.float32)
@@ -341,6 +345,20 @@ class DPMDAgent(BaseAgent):
         # define tracking variables
         self._n_training_steps = 0
 
+    def _compute_negative_slope(self) -> jnp.ndarray:
+        t = self._n_training_steps
+        schedule = self.cfg.negative_slope_schedule
+        if schedule == "constant":
+            return self.cfg.negative_slope
+        elif schedule == "reverse_linear":
+            total_steps = 1_000_000.0
+            progress = jnp.clip(t / total_steps, 0.0, 1.0)
+            return self.cfg.negative_slope * progress
+        elif schedule == "exp_decay":
+            return self.cfg.negative_slope * jnp.exp(-self.cfg.negative_slope_decay_rate * t)
+        else:
+            raise ValueError(f"Unknown negative_slope_schedule: {schedule}")
+
     def _compute_weights_offset(self) -> jnp.ndarray:
         t = self._n_training_steps
         schedule = self.cfg.weights_offset_schedule
@@ -360,6 +378,7 @@ class DPMDAgent(BaseAgent):
             raise ValueError(f"Unknown weights_offset_schedule: {schedule}")
 
     def train_step(self, batch: Batch, step: int) -> Metric:
+        negative_slope = self._compute_negative_slope()
         weights_offset = self._compute_weights_offset()
         self.rng, self.actor, self.actor_target, self.critic, self.critic_target, self.temp, metrics = jit_update_dpmd(
             self.rng,
@@ -376,6 +395,7 @@ class DPMDAgent(BaseAgent):
             ema=self.cfg.ema,
             additive_noise=self.cfg.additive_noise,
             negative_bound=self.cfg.negative_bound,
+            negative_slope=negative_slope,
             weights_offset=weights_offset,
             neg_weight_reg=self.cfg.neg_weight_reg,
         )

@@ -1,0 +1,39 @@
+# @package _global_
+
+algo:
+  name: dpmd_leakyrelu_reverse_linear
+  backbone_cls: mlp
+  critic_hidden_dims: [256, 256]
+  critic_activation: relu
+  critic_lr: 0.0003
+  temp_lr: 0.0003
+  discount: 0.99
+  num_samples: 10
+  num_particles: 64
+  target_kl: 2.0
+  reweight: leakyrelu
+  ema: 0.005
+  old_policy_update_interval: 1000
+  additive_noise: 0.2
+  negative_bound: 0.0
+  negative_slope: 0.01
+  negative_slope_schedule: reverse_linear
+  negative_slope_decay_rate: 0.0
+  weights_offset: 0.0
+  weights_offset_decay_rate: 0.0
+  weights_offset_schedule: exp_decay
+  neg_weight_reg: 0.0
+  diffusion:
+    backbone_cls: ${algo.backbone_cls}
+    activation: mish
+    time_dim: 64
+    hidden_dims: [256, 256, 256]
+    lr: 0.0001
+    end_lr: null
+    lr_decay_steps: null
+    lr_decay_begin: null
+    steps: 20
+    clip_sampler: true
+    x_min: -1.0
+    x_max: 1.0
+    solver: ddpm
